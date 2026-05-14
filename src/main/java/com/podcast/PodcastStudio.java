@@ -41,6 +41,29 @@ public class PodcastStudio extends Application {
     static final String PURPLE     = "#a855f7";   // Lila (Monitor)
     static final String SELECT_COL = "#1a3a5c";   // Selektion
 
+    // ── Gecachte Color-Objekte (vermeidet Color.web()-Allocations im 60fps Hot-Path) ──
+    static final Color METER_COLOR_HIGH = Color.web(ACCENT);
+    static final Color METER_COLOR_MID  = Color.web(ACCENT2);
+    static final Color METER_COLOR_LOW  = Color.web(GREEN);
+
+    // ── Timing-Konstanten (vermeidet Magic Numbers) ──
+    static final int MIC_RETRY_DELAY_1_MS     = 900;
+    static final int MIC_RETRY_DELAY_2_MS     = 1500;
+    static final int DEVICE_WATCH_INTERVAL_MS = 2000;
+    static final int HOTPLUG_HINT_DURATION_MS = 3000;
+    static final int MONITOR_POLL_TIMEOUT_MS  = 100;
+    static final int EDITOR_FRAME_INTERVAL_MS = 40;  // ~25 fps Cursor-Update
+
+    // ── App-Strings (vermeidet hardcoded Duplikate) ──
+    static final String APP_NAME   = "PodcastStudio";
+    static final String PREFS_NODE = "PodcastStudio";
+
+    // ── UI-Strings (vermeidet copy-paste) ──
+    static final String EMPTY_RECORDINGS_MSG =
+        "🎙  Noch keine Aufnahmen vorhanden\n\nKlicke oben auf  ●  AUFNAHME STARTEN  um zu beginnen";
+    static final String MARKER_HINT_MSG =
+        "Während Aufnahme:  Klick auf 📍 Marker setzen  oder Taste M";
+
     // ── UI-Skalierung & Settings ──
     DoubleProperty uiScaleProp = new SimpleDoubleProperty(1.2);
     BorderPane     uiRoot;
@@ -108,6 +131,11 @@ public class PodcastStudio extends Application {
     Thread   editorPlayThread;
     int      dragStartSample = -1;
 
+    // ── Editor-Waveform Peak-Cache (vermeidet O(n) Neuberechnung pro Frame) ──
+    float[]  cachedPeaks;        // Peak-Werte pro Pixel-Spalte
+    int      cachedPeaksWidth;   // Canvas-Breite zur Cache-Erstellung
+    float[]  cachedPeaksAudio;   // Referenz: wenn editAudio sich aendert, Cache invalidieren
+
     // ── Waveform live buffer ──
     float[]          waveBuf = new float[200];
     volatile float   level   = 0f;
@@ -147,7 +175,7 @@ public class PodcastStudio extends Application {
         loadPrefs();
 
         outputDir = Path.of(System.getProperty("user.home"),
-                            "Documents", "PodcastStudio");
+                            "Documents", APP_NAME);
         try { Files.createDirectories(outputDir); } catch (Exception ignored) {}
         ffmpeg       = findFFmpeg();
         whisperExe   = findWhisper();
@@ -221,9 +249,9 @@ public class PodcastStudio extends Application {
 
         // Mic-Retry: Audio-Subsystem braucht beim 1. Start manchmal länger
         Thread micRetry = new Thread(() -> {
-            try { Thread.sleep(900); } catch (InterruptedException ignored) {}
+            try { Thread.sleep(MIC_RETRY_DELAY_1_MS); } catch (InterruptedException ignored) {}
             Platform.runLater(() -> { populateMics(); populateOutputs(); });
-            try { Thread.sleep(1500); } catch (InterruptedException ignored) {}
+            try { Thread.sleep(MIC_RETRY_DELAY_2_MS); } catch (InterruptedException ignored) {}
             Platform.runLater(() -> { populateMics(); populateOutputs(); });
         }, "mic-retry");
         micRetry.setDaemon(true);
@@ -244,7 +272,7 @@ public class PodcastStudio extends Application {
     //  PREFERENCES (Schriftgröße + Schriftfarbe)
     // ═══════════════════════════════════════════
     java.util.prefs.Preferences prefs() {
-        return java.util.prefs.Preferences.userRoot().node("PodcastStudio");
+        return java.util.prefs.Preferences.userRoot().node(PREFS_NODE);
     }
 
     void loadPrefs() {
@@ -287,7 +315,7 @@ public class PodcastStudio extends Application {
             java.util.Set<String> known = currentMixerNames();
             while (true) {
                 try {
-                    Thread.sleep(2000);
+                    Thread.sleep(DEVICE_WATCH_INTERVAL_MS);
                 } catch (InterruptedException e) {
                     break;
                 }
@@ -326,7 +354,7 @@ public class PodcastStudio extends Application {
         statusLbl.setStyle(prevStyle.replaceAll("-fx-text-fill:[^;]+",
             "-fx-text-fill:" + GREEN));
         Thread hint = new Thread(() -> {
-            try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
+            try { Thread.sleep(HOTPLUG_HINT_DURATION_MS); } catch (InterruptedException ignored) {}
             Platform.runLater(() -> {
                 // Nur zurücksetzen wenn gerade noch der Hinweis steht
                 if (statusLbl.getText().equals(msg)) {
@@ -435,7 +463,7 @@ public class PodcastStudio extends Application {
 
         // App-Titel (YouTube-Stil: weiß, groß)
         VBox titles = new VBox(2);
-        Label appName = styledLbl("PodcastStudio", FG, "Calibri,Segoe UI,Arial", "22", "bold");
+        Label appName = styledLbl(APP_NAME, FG, "Calibri,Segoe UI,Arial", "22", "bold");
         Label appSub  = styledLbl("PRO  ·  v4.0  ·  Recorder  ·  Editor  ·  Mixer",
                                    MUTED, "Calibri,Segoe UI,Arial", "11", "normal");
         titles.getChildren().addAll(appName, appSub);
@@ -506,7 +534,7 @@ public class PodcastStudio extends Application {
                     editorMuteHintLbl.setVisible(visible);
                     editorMuteHintLbl.setManaged(visible);
                 }
-                Platform.runLater(() -> Platform.runLater(this::drawEditor));
+                Platform.runLater(this::drawEditor);
             } else if (n == t1) {
                 // ── Recorder-Tab aktiv ──
                 // Monitor wieder anschalten, falls er vorher aktiv war
@@ -728,7 +756,7 @@ public class PodcastStudio extends Application {
         recListBox = new VBox(6);
         recListBox.setFillWidth(true);
         Label emptyLbl = styledLbl(
-            "🎙  Noch keine Aufnahmen vorhanden\n\nKlicke oben auf  ●  AUFNAHME STARTEN  um zu beginnen",
+            EMPTY_RECORDINGS_MSG,
             MUTED, "Calibri,Segoe UI,Arial", "14", "normal");
         emptyLbl.setPadding(new Insets(40, 20, 40, 20));
         emptyLbl.setStyle(emptyLbl.getStyle() +
@@ -927,7 +955,7 @@ public class PodcastStudio extends Application {
         markerListBox = new VBox(3);
         markerListBox.setFillWidth(true);
         Label emptyM = styledLbl(
-            "Während Aufnahme:  Klick auf 📍 Marker setzen  oder Taste M",
+            MARKER_HINT_MSG,
             MUTED, "Calibri,Segoe UI,Arial", "11", "italic");
         emptyM.setPadding(new Insets(6, 0, 6, 0));
         markerListBox.getChildren().add(emptyM);
@@ -1794,7 +1822,7 @@ public class PodcastStudio extends Application {
         markerCountLbl.setText("(" + markers.size() + ")");
         if (markers.isEmpty()) {
             Label e = styledLbl(
-                "Während Aufnahme:  Klick auf 📍 Marker setzen  oder Taste M",
+                MARKER_HINT_MSG,
                 MUTED, "Calibri,Segoe UI,Arial", "11", "italic");
             e.setPadding(new Insets(6, 0, 6, 0));
             markerListBox.getChildren().add(e);
@@ -1884,7 +1912,7 @@ public class PodcastStudio extends Application {
         countLbl.setText(n + " Datei" + (n != 1 ? "en" : ""));
         if (n == 0) {
             Label e = styledLbl(
-                "🎙  Noch keine Aufnahmen vorhanden\n\nKlicke oben auf  ●  AUFNAHME STARTEN  um zu beginnen",
+                EMPTY_RECORDINGS_MSG,
                 MUTED, "Calibri,Segoe UI,Arial", "14", "normal");
             e.setPadding(new Insets(40, 20, 40, 20));
             e.setStyle(e.getStyle() +
@@ -2106,18 +2134,32 @@ public class PodcastStudio extends Application {
         }
 
         int n = editAudio.length;
-        int sampPerPx = Math.max(1, n / (int) w);
+        int iw = (int) w;
+
+        // Peak-Cache: nur neu berechnen wenn Audio oder Canvas-Breite sich aendert
+        // (vorher: O(n) pro Frame waehrend Wiedergabe = Milliarden Operationen/Sek)
+        if (cachedPeaks == null || cachedPeaksWidth != iw || cachedPeaksAudio != editAudio) {
+            int sampPerPx = Math.max(1, n / iw);
+            cachedPeaks = new float[iw];
+            for (int x = 0; x < iw; x++) {
+                int start = x * sampPerPx;
+                int end   = Math.min(start + sampPerPx, n);
+                if (start >= n) break;
+                float peak = 0f;
+                for (int i = start; i < end; i++)
+                    peak = Math.max(peak, Math.abs(editAudio[i]));
+                cachedPeaks[x] = peak;
+            }
+            cachedPeaksWidth = iw;
+            cachedPeaksAudio = editAudio;
+        }
+
         gc.setStroke(Color.web(ACCENT));
         gc.setLineWidth(1);
-        for (int x = 0; x < (int) w; x++) {
-            int start = x * sampPerPx;
-            int end   = Math.min(start + sampPerPx, n);
-            if (start >= n) break;
-            float peak = 0f;
-            for (int i = start; i < end; i++)
-                peak = Math.max(peak, Math.abs(editAudio[i]));
-            double amp = peak * (h / 2) * 0.92;
-            gc.strokeLine(x, h / 2 - amp, x, h / 2 + amp);
+        double halfH = h / 2;
+        for (int x = 0; x < iw; x++) {
+            double amp = cachedPeaks[x] * halfH * 0.92;
+            gc.strokeLine(x, halfH - amp, x, halfH + amp);
         }
 
         double cx = sampleToX(cursorPos, w);
@@ -2315,6 +2357,7 @@ public class PodcastStudio extends Application {
             factor = factor * factor;
             editAudio[startSample + i] *= factor;
         }
+        cachedPeaks = null;  // In-Place-Modifikation: Cache invalidieren
         drawEditor();
     }
 
@@ -2355,6 +2398,7 @@ public class PodcastStudio extends Application {
         for (int i = start; i < end; i++) {
             editAudio[i] = Math.max(-1f, Math.min(1f, editAudio[i] * factor));
         }
+        cachedPeaks = null;  // In-Place-Modifikation: Cache invalidieren
         drawEditor();
 
         double db = 20 * Math.log10(factor);
@@ -2415,7 +2459,7 @@ public class PodcastStudio extends Application {
                                 cursorPos = fc;
                                 drawEditor();
                             });
-                            Thread.sleep(40);  // ~25 fps
+                            Thread.sleep(EDITOR_FRAME_INTERVAL_MS);
                         } catch (InterruptedException ie) { break; }
                           catch (Exception ignored)      { break; }
                     }
@@ -2599,15 +2643,17 @@ public class PodcastStudio extends Application {
                 }
 
                 // Meter-Update nur wenn Pegel > 0 oder gerade verstummt
+                // Verwendet gecachte Color-Objekte (siehe statische Felder) - vorher
+                // Color.web() Aufruf in Hot-Path war 60fps Allocation-Quelle
                 if (meterFill != null && meterPane != null) {
                     if (level > 0.001f || !lastMeterZero) {
                         double pw = meterPane.getWidth();
                         if (pw > 0) {
                             double lw = pw * level;
                             meterFill.setWidth(lw);
-                            Color c = level > 0.85 ? Color.web(ACCENT)
-                                    : level > 0.6  ? Color.web(ACCENT2)
-                                    : Color.web(GREEN);
+                            Color c = level > 0.85 ? METER_COLOR_HIGH
+                                    : level > 0.6  ? METER_COLOR_MID
+                                    : METER_COLOR_LOW;
                             meterFill.setFill(c);
                         }
                         level *= 0.92f;
@@ -2638,7 +2684,7 @@ public class PodcastStudio extends Application {
         double w = liveCanvas.getWidth(), h = liveCanvas.getHeight();
         if (w <= 0 || h <= 0) return;
 
-        gc.clearRect(0, 0, w, h);
+        // fillRect ueberschreibt eh - clearRect waere redundant
         gc.setFill(Color.web(CARD));
         gc.fillRect(0, 0, w, h);
 
