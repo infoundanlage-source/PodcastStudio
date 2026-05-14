@@ -1,0 +1,35 @@
+﻿# Portable JDK + JavaFX SDK (zu gross fuer Git, werden via SETUP.bat geholt)
+jdk/
+javafx-sdk/
+
+# Whisper (zu gross, wird via WHISPER_SETUP.bat geholt)
+whisper/
+
+# FFmpeg-Binary (in beiden Locations - Hauptordner UND app-Unterordner)
+ffmpeg.exe
+app/ffmpeg.exe
+
+# Compiled output
+app/classes/
+app/manifest.txt
+
+# Screenshot-Artefakte aus Entwicklung
+*.png
+!chat_verlauf/*.png
+
+# Logs / Temp
+*.log
+*.tmp
+
+# OS-spezifisch
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Aufnahmen (sollte der User selbst behalten, nicht im Repo)
+Aufnahmen/

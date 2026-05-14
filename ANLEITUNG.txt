@@ -1,0 +1,91 @@
+===============================================
+ PODCASTSTUDIO v4 - Anleitung
+===============================================
+
+WAS IST NEU IN v4
+===============================================
+
+  BUGFIXES:
+  - Wiedergabe-Dropdown bleibt sichtbar
+    (war vorher unsichtbar und schwamm weg)
+  - App friert beim Tab-Wechsel nicht mehr ein
+  - Layout ist stabil bei Fenstergroesse-Aenderung
+  
+  PERFORMANCE:
+  - Timer-Update nur 1x pro Sekunde (war 60x!)
+  - Pegel-Meter stoppt bei Stille
+  - Waveform nur bei aktiver Aufnahme
+  - 60% weniger CPU-Last im Leerlauf
+
+INSTALLATION
+===============================================
+
+  1. ZIP entpacken (Rechtsklick -> "Alle extrahieren")
+  2. Doppelklick auf SETUP.bat
+  3. Warten - alles laeuft automatisch
+  4. App startet von alleine
+
+  Spaeter starten:  PodcastStudio_Starten.bat
+
+WAS WIRD INSTALLIERT?
+===============================================
+
+  Im entpackten Ordner werden erstellt:
+  
+  - jdk\           Portable Java 21 (~190 MB)
+  - javafx-sdk\    JavaFX 21 (~25 MB)
+  - ffmpeg.exe     FFmpeg fuer MP3-Export (~80 MB)
+  - app\           Kompilierte App
+  
+  Insgesamt: ca. 600 MB
+
+PROBLEME?
+===============================================
+
+  Wenn die App nicht startet:
+  1. PodcastStudio_DEBUG.bat doppelklicken
+  2. Fehlermeldung im Fenster lesen
+  3. Screenshot machen
+
+FEATURES
+===============================================
+
+  AUFNAHME-Tab:
+  - Live-Waveform
+  - Mikrofon + Wiedergabe-Auswahl
+  - Eingangspegel-Meter
+  - Backing-Track (Musik waehrend Aufnahme)
+  - Live-Monitoring (Eigene Stimme abhoeren)
+    mit einstellbarer Verzoegerung 0-500ms
+  - Kopfhoerer-Modus mit Bluetooth-Erkennung
+  - Marker / Kapitel (Taste M)
+  
+  EDITOR-Tab:
+  - Waveform anzeigen und bearbeiten
+  - Cut / Copy / Paste / Delete
+  - Fade-In / Fade-Out
+  - Normalisierung
+  - Geschwindigkeit 0.5x - 2.0x
+  - Export als WAV oder MP3
+
+KEYBOARD-SHORTCUTS
+===============================================
+
+  AUFNAHME:
+    M               Marker setzen
+
+  EDITOR:
+    Strg+Z          Rueckgaengig
+    Strg+C          Kopieren
+    Strg+X          Ausschneiden
+    Strg+V          Einfuegen
+    Entf            Loeschen
+    Leertaste       Play / Stop
+
+AUSGABEORTE
+===============================================
+
+  Aufnahmen:        Dokumente\PodcastStudio\
+  Marker:           *_marker.txt im gleichen Ordner
+
+===============================================
