@@ -1,0 +1,2 @@
+-keep class com.timerflow.data.model.** { *; }
+-keepattributes *Annotation*
