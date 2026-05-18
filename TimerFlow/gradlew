@@ -1,0 +1,20 @@
+#!/bin/sh
+#
+# Gradle wrapper script for Unix
+
+APP_NAME="Gradle"
+APP_BASE_NAME=$(basename "$0")
+DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
+
+GRADLE_WRAPPER_JAR="$APP_HOME/gradle/wrapper/gradle-wrapper.jar"
+GRADLE_OPTS="${GRADLE_OPTS:-} $DEFAULT_JVM_OPTS"
+
+# Detect OS and set path separator
+case "$(uname)" in
+  CYGWIN*|MINGW*) APP_HOME=$(cygpath --mixed "$APP_HOME");;
+esac
+
+exec "$JAVACMD" $JAVA_OPTS $GRADLE_OPTS \
+  -classpath "$GRADLE_WRAPPER_JAR" \
+  org.gradle.wrapper.GradleWrapperMain \
+  "$@"
