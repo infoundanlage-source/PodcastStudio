@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+  # Schritt 1: APK bauen
+  build-apk:
+    build:
+      context: .
+      dockerfile: Dockerfile.build
+    volumes:
+      - apk-output:/output
+    profiles:
+      - build
+
+  # Schritt 2: Android Emulator mit Browser-Zugriff
+  android-emulator:
+    image: budtmo/docker-android:emulator_14.0
+    privileged: true
+    ports:
+      - "6080:6080"   # Browser-Zugriff (noVNC)
+      - "5554:5554"   # ADB
+      - "5555:5555"   # ADB
+    environment:
+      - EMULATOR_DEVICE=Samsung Galaxy S10
+      - WEB_VNC=true
+      - APPIUM=false
+    volumes:
+      - apk-output:/apk
+    healthcheck:
+      test: ["CMD", "adb", "shell", "getprop", "sys.boot_completed"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+
+volumes:
+  apk-output:
